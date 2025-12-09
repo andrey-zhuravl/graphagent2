@@ -1,0 +1,22 @@
+[llm]
+base_url = "http://192.168.1.12:8000/v1"  # vLLM OpenAI-compatible API
+model = "/model_path"
+max_tokens = 30000
+batch_size = 16
+
+[memory]
+neo4j_uri = "neo4j://localhost:7687"  # URI для Neo4j
+neo4j_user = "neo4j"
+neo4j_password = "12345678"  # Замените на реальный
+database = "graphiti"  # Имя базы
+embeding_db_url = "postgresql+psycopg2://agent:agent123@localhost:5422/agentdb"
+
+[tools]
+fs_root = "D:/garden/tmp"  # Ограниченная директория для FS
+git_repo = "D:/garden/lab/graphagent"  # Путь к Git-репозиторию
+python_env = "python3"  # Команда для запуска Python
+
+[mcp]
+base_url = "http://127.0.0.1:8000"
+sandbox_mode = true  # Включить sandbox для инструментов
+max_exec_time = 60  # Максимальное время выполнения (секунды)

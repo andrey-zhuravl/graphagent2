@@ -1,5 +1,5 @@
 [project]
-name = "graphagent"
+name = "graphagent2"
 version = "0.1.0"
 description = "Default template for PDM package"
 authors = [
