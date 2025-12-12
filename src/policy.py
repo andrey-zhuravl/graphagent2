@@ -3,7 +3,7 @@ from typing import List
 
 from src.action import Action
 from src.llm.agent_client import AgentClient
-from src.mcp.mcp_client import McpClient
+from src.mcp_server.mcp_client import McpClient
 from src.memory import Context, Thought
 
 class Policy:

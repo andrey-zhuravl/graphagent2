@@ -1,6 +1,6 @@
 from typing import Dict, Any
 
-from src.mcp.mcp_client import McpClient
+from src.mcp_server.mcp_client import McpClient
 
 
 class Tool:
