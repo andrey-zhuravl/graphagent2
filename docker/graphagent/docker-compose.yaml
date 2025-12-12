@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  pgvector:
+    image: ankane/pgvector:latest
+    container_name: agent-pgvector1
+    restart: unless-stopped
+    ports:
+      - "5422:5432"
+    environment:
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: agent123
+      POSTGRES_DB: agentdb
+    volumes:
+      - D:\data\pgvector:/var/lib/postgresql/data
+
+volumes:
+  pgvector_data:

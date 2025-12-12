@@ -2,13 +2,13 @@
 import asyncio
 import pprint
 import types
-from typing import Any
-from mcp import ClientSession, ListToolsResult
+from typing import Any, Dict
+from mcp import ClientSession, ListToolsResult, Tool
 from mcp.client.streamable_http import streamablehttp_client
 
 
 class McpStreamClient:
-    def __init__(self, server_url: str):
+    def __init__(self, server_url: str = "http://localhost:8000/mcp"):
         self.server_url = server_url
         self._inner_session = None  # это будет ClientSession
         self._transport = None  # это будет streamablehttp_client(...)
@@ -34,12 +34,11 @@ class McpStreamClient:
         if self._transport:
             await self._transport.__aexit__(exc_type, exc_val, exc_tb)
 
-    async def list_str_tools(self) -> list[str]:
-        resp = await self._inner_session.list_tools()
-        return [t.name for t in resp.tools]
-
-    async def list_tools(self) -> ListToolsResult:
+    async def list_tools1(self) -> ListToolsResult:
         return await self._inner_session.list_tools()
+
+    async def list_tools(self) -> list[Tool]:
+        return await self._inner_session.list_tools().tools
 
     async def call_tool(self, name: str, args: dict[str, Any]) -> Any:
         result = await self._inner_session.call_tool(name, args)
@@ -51,6 +50,29 @@ class McpStreamClient:
             return result.content[0].text
 
         return None
+
+    def convert_mcp_tool_to_openai_format(self, tool_dict: Tool) -> Dict:
+        """
+        Преобразует инструмент в формате FastMCP (MCP-spec) в формат OpenAI function calling.
+        """
+        return {
+            "type": "function",
+            "function": {
+                "name": tool_dict.name,
+                "description": tool_dict.description,
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        param_name: {
+                            "type": param_meta["type"],
+                            "description": param_meta.get("description", "")  # может быть пустым
+                        }
+                        for param_name, param_meta in tool_dict.inputSchema["properties"].items()
+                    },
+                    "required": tool_dict.inputSchema.get("required", [])
+                }
+            }
+        }
 
 async def main():
     # async with streamablehttp_client("http://localhost:8000/mcp") as (read, write, _):

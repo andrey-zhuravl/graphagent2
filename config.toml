@@ -1,15 +1,33 @@
-[llm]
+[llm1]
 base_url = "http://192.168.1.12:8000/v1"  # vLLM OpenAI-compatible API
 model = "/model_path"
 max_tokens = 30000
 batch_size = 16
+
+[llm2]
+base_url = "http://192.168.1.12:1234/v1"  # LM-Studio OpenAI-compatible API
+model = "openai/gpt-oss-20b"
+max_tokens = 12000
+batch_size = 16
+
+[embedding_llm1]
+base_url = "http://192.168.1.12:1234/v1"  # LM-Studio
+model = "text-embedding-nomic-embed-text-v1.5"
+
+[embedding_llm2]
+base_url = "http://192.168.1.12:1234/v1"  # LM-Studio
+model = "text-embedding-codebert-ollama"
+
+[embedding_llm3]
+base_url = "http://192.168.1.12:1234/v1"  # LM-Studio
+model = "text-embedding-codebert-base-cd-ft"
 
 [memory]
 neo4j_uri = "neo4j://localhost:7687"  # URI для Neo4j
 neo4j_user = "neo4j"
 neo4j_password = "12345678"  # Замените на реальный
 database = "graphiti"  # Имя базы
-embeding_db_url = "postgresql+psycopg2://agent:agent123@localhost:5422/agentdb"
+embedding_db_url = "postgresql+psycopg2://agent:agent123@localhost:5422/agentdb"
 
 [tools]
 fs_root = "D:/garden/tmp"  # Ограниченная директория для FS
