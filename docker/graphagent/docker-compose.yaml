@@ -11,8 +11,50 @@ services:
       POSTGRES_USER: agent
       POSTGRES_PASSWORD: agent123
       POSTGRES_DB: agentdb
+    networks:
+      - ai-network
     volumes:
       - D:\data\pgvector:/var/lib/postgresql/data
 
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n-ai-automation
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=your_secure_password
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=Europe/Moscow
+      - N8N_LOG_LEVEL=debug  # Для разработки полезно
+    ports:
+      - "5678:5678"
+    volumes:
+      - ../n8n-data:/home/node/.n8n
+      - ./local-files:/files  # Для доступа к локальным файлам
+    networks:
+      - ai-network
+    restart: unless-stopped
+
+  my-ai-agent:
+    build: ./agent  # Путь к Dockerfile агента
+    container_name: ai-agent-service
+    ports:
+      - "8000:8000"
+    environment:
+      - MCP_SERVER_URL=http://mcp-server:8000
+      - QDRANT_URL=http://qdrant:6333
+    networks:
+      - ai-network
+    restart: unless-stopped
+
+networks:
+  ai-network:
+    driver: bridge
+
 volumes:
   pgvector_data:
+  n8n_data:

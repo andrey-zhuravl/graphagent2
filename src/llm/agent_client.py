@@ -18,7 +18,7 @@ class AgentClient:
             model=self.config[self.llm]["model"],
             messages=msgs,
             temperature=0.0,
-            max_tokens=8192,
+            max_tokens=16382,
             stop=["\n```"]  # обрезаем после первого ```
         )
         return result
