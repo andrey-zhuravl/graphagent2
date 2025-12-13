@@ -13,12 +13,14 @@ from src.rag.agent_embeding import Embedder
 @dataclass
 class Observation:
     def __init__(self,
-                 action: Action,  # к какому действию относится
-                 output: any,  # результат инструмента (текст, структура, лог)
-                 success: bool,  # прошло ли действие успешно
+                 action: Action = None,  # к какому действию относится
+                 output: any = None,  # результат инструмента (текст, структура, лог)
+                 success: bool = False,  # прошло ли действие успешно
+                 thought: str = None,
                  ):
         self.action = action
         self.output = output
+        self.thought = thought
         self.success = success
 
 @dataclass
@@ -57,6 +59,14 @@ class Context:
             return self.memory.scratchpad["plan"]
         else:
             return None
+
+    # Вспомогательная утилита
+    def format_recent_history(self, num_obs = 10) -> str:
+        lines = []
+        for obs in self.memory.history[-num_obs:]:
+            mark = "[Success]" if obs.success else "[Error]"
+            lines.append(f"{mark} {obs.action.tool_name}: {obs.action.params} - результат: {obs.output}")
+        return "\n".join(lines) if lines else "История пуста"
 
 
 @dataclass
@@ -182,10 +192,8 @@ class ThoughtManager:
 RAG (если есть):
 {rag_context}
 
-Последние 5 действий из истории (если есть):
-{self._format_recent_history()}
-
-На основе этого — подумай вслух и предложи следующее действия в пункте action_plan соответствующие списку MCP-инструментов который приложен,
+На основе этого — подумай вслух и предложи следующее действия в пункте action_plan соответствующие списку MCP-инструментов который приложен, 
+Когда задача полностью выполнена и больше не требуются действия, используй инструмент 'submit_task' в своем action_plan."
 Ответ строго в JSON:
 {{
     "reasoning": "твои рассуждения на русском",
@@ -237,14 +245,6 @@ RAG (если есть):
                 source="llm_fallback",
                 action_plan="1. Вывести текущее состояние: ls -la && pwd && git status"
             )
-
-    # Вспомогательная утилита
-    def _format_recent_history(self) -> str:
-        lines = []
-        for obs in self.context.memory.history[-5:]:
-            mark = "[Success]" if obs.success else "[Error]"
-            lines.append(f"{mark} {obs.action.type}: {obs.action.description or obs.action.command[:80]}")
-        return "\n".join(lines) if lines else "История пуста"
 
     async def _get_rag_context(self, situation, k = 3) -> str:
         chunk_list = self.embedder.find_chunks(situation, k, max_distance = 0.1)

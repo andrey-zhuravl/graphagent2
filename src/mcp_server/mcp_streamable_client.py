@@ -47,7 +47,7 @@ class McpStreamClient:
             return result.structuredContent
 
         if result.content and hasattr(result.content[0], 'text'):
-            return result.content[0].text
+            return result.content
 
         return None
 

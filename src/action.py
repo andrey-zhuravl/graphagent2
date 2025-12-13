@@ -6,7 +6,7 @@ from src.mcp_server.mcp_streamable_client import McpStreamClient
 @dataclass
 class Action:
     def __init__(self, tool_name: str,  # имя инструмента, который нужно вызвать
-                 params: dict) -> None:
+                 params: dict = None) -> None:
         self.tool_name = tool_name
         self.params = params
 
