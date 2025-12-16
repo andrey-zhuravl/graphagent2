@@ -34,11 +34,9 @@ class McpStreamClient:
         if self._transport:
             await self._transport.__aexit__(exc_type, exc_val, exc_tb)
 
-    async def list_tools1(self) -> ListToolsResult:
-        return await self._inner_session.list_tools()
-
     async def list_tools(self) -> list[Tool]:
-        return await self._inner_session.list_tools().tools
+        tools_result = await self._inner_session.list_tools()
+        return tools_result.tools
 
     async def call_tool(self, name: str, args: dict[str, Any]) -> Any:
         result = await self._inner_session.call_tool(name, args)

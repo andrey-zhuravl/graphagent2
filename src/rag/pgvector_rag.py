@@ -80,7 +80,55 @@ class PgVectorRAG:
                 for row in rows
             ]
 
-    def save_chunk(self, chunk: MemoryChunk):
+    def search_memory(self, query_embedding: List[float], top_k: int = 10, max_distance: float = 0.1) -> List[MemoryChunk]:
+        """
+        Поиск по косинусному расстоянию с использованием SQLAlchemy ORM
+        """
+        with Session(self.engine) as session:
+            # 1. Создаем запрос с ORM-методом cosine_distance
+            #    Это не raw SQL, а нативная конструкция pgvector.sqlalchemy
+            distance_expr = MemoryChunk.embedding.cosine_distance(query_embedding)
+
+            stmt = (
+                select(
+                    MemoryChunk.id,
+                    MemoryChunk.situation,
+                    MemoryChunk.action_description,
+                    MemoryChunk.result_summary,
+                    MemoryChunk.reasoning,
+                    MemoryChunk.action_plan,
+                    MemoryChunk.embedding,
+                    MemoryChunk.success,
+                    MemoryChunk.created_at,
+                    distance_expr.label("distance")  # Присваиваем имя для доступа к результату
+                )
+                .order_by(distance_expr)  # Сортируем по расстоянию
+                .limit(top_k)
+            )
+
+            # <-- добавляем фильтр по порогу, если он задан
+            if max_distance is not None:
+                stmt = stmt.where(distance_expr <= max_distance)
+
+            # 2. Выполняем и получаем результаты
+            rows = session.execute(stmt).all()
+
+            # 3. Преобразуем в dict
+            return [
+                MemoryChunk(
+                    situation=row.situation,
+                    action_description=row.action_description,
+                    result_summary=row.result_summary,
+                    reasoning=row.reasoning,
+                    action_plan=row.action_plan,
+                    embedding=row.embedding,
+                    success=row.success
+                )
+                for row in rows
+            ]
+
+
+    def save_memory_chunk(self, chunk: MemoryChunk):
         self.session.merge(chunk)
         self.session.commit()
 

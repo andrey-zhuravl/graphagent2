@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Dict
 
 from src.rag.pgvector_rag import PgVectorRAG
-from src.rag.models import Chunk
+from src.rag.models import Chunk, MemoryChunk
 from src.utils.config import get_config_dict
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
@@ -60,6 +60,57 @@ class Embedder:
         result = self.pgVectorRAG.search(embedding, top_k=top_k, max_distance = max_distance)
         print(f"Нашли {len(result)} чанков")
         return result
+
+    def find_memory_chunks(self, query: str, top_k: int = 5, max_distance: float = 0.15) -> List[MemoryChunk]:
+        embedding: List[float] = self.get_embedding(query)
+        result = self.pgVectorRAG.search_memory(embedding, top_k=top_k, max_distance=max_distance)
+        print(f"Нашли {len(result)} чанков")
+        return result
+
+    # def find_memory_chunks1(self, query: str, top_k: int = 5, max_distance: float = 0.15) -> List[MemoryChunk]:
+    #     self.pgVectorRAG.memory_init_db()
+    #     emb = self.get_embedding(query)
+    #     if not emb:
+    #         return []
+    #
+    #     with Session(self.engine) as session:
+    #         distance_expr = MemoryChunk.embedding.cosine_distance(emb)
+    #         stmt = (
+    #             select(MemoryChunk)
+    #             .order_by(distance_expr)
+    #             .where(distance_expr <= max_distance)
+    #             .limit(top_k)
+    #         )
+    #         rows = session.execute(stmt).scalars().all()
+    #         return rows
+
+    def save_memory_chunk(
+            self,
+            situation: str,  # Краткое описание текущей ситуации (для поиска)
+            action_description: str,  # Что сделал: "вызвал create_file", "подумал о архитектуре"
+            result_summary: str,  # "Успех: файл создан", "Провал: синтаксическая ошибка"
+            reasoning: str = None,  # Полный текст рассуждений (опционально)
+            action_plan: str = None,  # План действий из Thought
+            success: bool = True
+    ):
+        emb = self.get_embedding(situation)
+        if not emb:
+            print("Не удалось получить эмбеддинг для памяти")
+            return
+
+        memory_chunk = MemoryChunk(
+            situation=situation,
+            action_description=action_description,
+            result_summary=result_summary,
+            reasoning=reasoning,
+            action_plan=action_plan,
+            embedding=emb,
+            success=success
+        )
+
+        # Используем существующий pgVectorRAG
+        self.pgVectorRAG.save_memory_chunk(memory_chunk)  # у тебя уже есть этот метод
+        print(f"Сохранена память: {situation[:80]}...")
 
     # --------------------------------------------------------------
     # Утилиты
