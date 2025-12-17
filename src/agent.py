@@ -27,9 +27,7 @@ class Agent:
         self.thought_manager = ThoughtManager(context = self.context)
 
     async def async_run(self, task: str):
-        self.context = Context(
-            user_goal=task,
-        )
+        self.context.user_goal=task,
         self.context.set_task(task)
         async with McpStreamClient() as client:
             self.mcp_client = client
