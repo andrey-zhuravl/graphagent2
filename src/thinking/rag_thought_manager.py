@@ -47,7 +47,7 @@ class RagThoughtManager:
             last_obs = self.context.last_observation
             if last_obs and last_obs.action.tool_name not in ["think_along", "empty_action"]:
                 # Краткая ситуация — можно взять short_text из build_situation, если перепишешь на возврат кортежа
-                situation_short = f"Цель: {self.context.user_goal[:100]} | Последнее: {last_obs.action.tool_name}"
+                situation_short = f"Цель: {self.context.user_goal} | Последнее: {last_obs.action.tool_name}"
 
                 action_desc = f"Вызвал {last_obs.action.tool_name} с {str(last_obs.action.params)[:150]}"
 
