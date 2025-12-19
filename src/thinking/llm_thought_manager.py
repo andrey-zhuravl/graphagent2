@@ -24,8 +24,10 @@ class LlmThoughtManager:
                            recent_error: str = None
                            ) -> Thought:
         prompt = f"""
-Цель пользователя: {self.context.user_goal or "не указана"}
-
+Наша Цель пользователя: {self.context.user_goal or "не указана"}
+IMPORTANT:
+The parameter for write_file - "path" is FORBIDDEN.
+Use ONLY "file_path".
 Текущая ситуация:
 {situation}
 

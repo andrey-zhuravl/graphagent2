@@ -33,8 +33,8 @@ async def main():
             В директории D:\\temp\\kodex1 лежит файл agent.py нужно написать для него юнит-тесты 
             и положить в той же директории в файл test_agent.py."""
     task7 = """В директории D:\\temp\\kodex1 лежит файл agent.py нужно написать для него ревью и положить в файл resume.txt"""
-    task8 = "напиши три главы одного рассказа и сохрани их в D:\\temp\\kodex1\\st.txt"
-    await agent.async_run(task=task8)
+    task8 = "напиши три главы одного рассказа и сохрани их в D:\\temp\\kodex2\\st.txt"
+    await agent.async_run(task=task6)
 
 
 if __name__ == "__main__":
