@@ -9,6 +9,7 @@ from src.thinking.thought_manager import ThoughtManager
 from src.tool import Tool
 
 import asyncio
+from src.utils.redis_client import redis_client
 
 class Agent:
     def __init__(
@@ -53,6 +54,9 @@ class Agent:
 
         # === Сохранение в долгосрочную память ===
         await self.thought_manager.rag_thought_manager.save_to_rag(thought)
+        
+        # === Сохранение всех наблюдений в Redis на 1 час ===
+        await self.save_observations_to_redis(observations)
 
     async def actions_to_observations(self, actions) -> list[Observation]:
         observations: list[Observation] = []
@@ -73,6 +77,34 @@ class Agent:
                 ))
                 print(result)
         return observations
+
+    async def save_observations_to_redis(self, observations: list[Observation]):
+        """
+        Save all observations to Redis with a TTL of 1 hour (3600 seconds)
+        Each observation gets a unique key based on timestamp and index
+        """
+        try:
+            for i, observation in enumerate(observations):
+                # Create a unique key for each observation
+                key = f"observation:{datetime.now().strftime('%Y%m%d_%H%M%S')}_{i}"
+                
+                # Convert observation to dictionary for storage
+                observation_data = {
+                    "action": {
+                        "tool_name": observation.action.tool_name,
+                        "params": observation.action.params if hasattr(observation.action, 'params') else {}
+                    },
+                    "output": str(observation.output),
+                    "success": observation.success,
+                    "thought": observation.thought
+                }
+                
+                # Save to Redis with 1 hour TTL (3600 seconds)
+                await redis_client.save_observation(key, observation_data, ttl=3600)
+                
+                print(f"Saved observation to Redis with key: {key}")
+        except Exception as e:
+            print(f"Error saving observations to Redis: {e}")
 
 
     def build_situation(self) -> str:
