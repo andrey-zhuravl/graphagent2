@@ -25,7 +25,7 @@ services:
     networks:
       - ai-network
     volumes:
-      - redis_data:/data
+      - ./redis_data:/data
     command: redis-server --appendonly yes
 
   n8n:
