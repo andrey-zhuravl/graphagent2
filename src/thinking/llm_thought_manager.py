@@ -1,12 +1,11 @@
-import asyncio
 import json
-from typing import Optional
 
 from src.action import Action
 from src.llm.agent_client import AgentClient
 from src.memory import Context, Thought
 from src.rag.agent_embeding import Embedder
-from src.tool import Tool
+from src.task import CompactGoal, MemoryRecord
+
 
 class LlmThoughtManager:
     def __init__(self, context: Context,
@@ -98,3 +97,158 @@ RAG (если есть):
                     Action(tool_name="error_llm")
                 ]
             )
+
+    async def llm_pre_thinking(self, tools: str) -> CompactGoal:
+        prompt = f"""
+Ты — модуль "Task Spec". Твоя задача: превратить пользовательскую задачу и текущую ситуацию в СТРОГУЮ спецификацию для ReAct-агента.
+
+Вход:
+- Задача пользователя: {self.context.user_goal}
+- названия MCP-tools: {tools}
+
+Выход: ТОЛЬКО один JSON-объект. Никакого текста вне JSON.
+
+Требования к JSON:
+1) Поле compact_goal — объект со структурой, как в схеме ниже. Пиши кратко, но конкретно.
+2) tool_name_list - список только необходимых и достаточных для полного решения всей задачи MCP-tools.
+3) success_criteria и subgoals[].done_when должны быть проверяемыми (по наблюдаемым фактам).
+4) rag_queries: 0–3 штуки, только если они реально могут изменить план/решение. Каждый запрос должен закрывать конкретный unknown.
+5) Не выдумывай фактов. Если данных нет — положи это в unknowns.
+
+СХЕМА (заполни все поля, если нечего — ставь пустой массив/пустую строку):
+  "compact_goal": {{
+    "title": "",
+    "objective": "",
+    "deliverables": [],
+    "tool_name_list": [],
+    "context": {{
+      "domain": "",
+      "entities": [],
+      "inputs": [],
+      "constraints": [],
+      "non_goals": []
+    }},
+    "success_criteria": [],
+    "subgoals": [
+      {{
+        "id": "S1",
+        "description": "",
+        "done_when": "",
+        "evidence_needed": [],
+        "risks": []
+      }}
+    ],
+    "unknowns": [],
+    "assumptions": [],
+  "rag_queries": [],
+  "confidence": 0.0
+}}
+"""
+        json_text = None
+        try:
+            response = self.client1.request(
+                msgs=[{"role": "system", "content": "Ты думаешь быстро и по делу."},
+                      {"role": "user", "content": prompt}],
+            )
+
+            json_text = response.choices[0].message.content.strip()
+            if json_text.startswith("```json"):
+                json_text = json_text[7:-3]
+                data = json.loads(json_text)
+
+            return CompactGoal.from_json(json_text)
+        except Exception as e:
+            print(f"упал: {e} \n {json_text}")
+            return CompactGoal.from_json(json.loads(f"""
+  "compact_goal": {{
+    "title": "",
+    "objective": "",
+    "deliverables": [],
+    "tool_name_list": [],
+    "context": {{
+      "domain": "",
+      "entities": [],
+      "inputs": [],
+      "constraints": [],
+      "non_goals": []
+    }},
+    "success_criteria": [],
+    "subgoals": [
+      {{
+        "id": "S1",
+        "description": {self.context.user_goal},
+        "done_when": "",
+        "evidence_needed": [],
+        "risks": []
+      }}
+    ],
+    "unknowns": [],
+    "assumptions": [],
+      "rag_queries": [],
+  "confidence": 0.0
+  }}
+                """))
+
+    async def llm_post_thinking(self, compact_goal: CompactGoal, tools: str, observations: str) -> MemoryRecord:
+            prompt = f"""
+    Ты — модуль "Task Spec". Твоя задача: превратить контекст выполненной задачи в RAG-запись для ReAct-агента.
+
+    Вход:
+    - Задача пользователя: {self.context.user_goal}
+    - названия использованных MCP-tools: {tools}
+    - наблюдения в процессе задачи: {observations}
+
+    Выход: ТОЛЬКО один JSON-объект. Никакого текста вне JSON.
+
+    Требования к JSON:
+    1) Поле memory_record — объект со структурой, как в схеме ниже. Пиши кратко, но конкретно.
+    2) tool_name_list - список MCP-tools использованных для решения всей задачи.
+    3) Не выдумывай фактов.
+
+    СХЕМА (заполни все поля, если нечего — ставь пустой массив/пустую строку):
+    {{
+  "memory_record": {{
+    "title": "кратко что было сделано",
+    "task": "какая была задача",
+    "solution_outline": ["шаги решения"],
+    "tool_name_list": ["MCP-tools-name"],
+    "key_decisions": ["почему выбрали так"],
+    "pitfalls_and_fixes": [{{"symptom":"", "cause":"", "fix":""}}],
+    "artifacts": ["файлы/коммиты/команды/ссылки"],
+    "verification": ["как проверили что готово"],
+    "reusable_patterns": ["что можно переиспользовать в будущем"],
+    "tags": ["kafka", "spring", "react-agent", "..."]
+  }}
+    }}
+    """
+            json_text = None
+            try:
+                response = self.client1.request(
+                    msgs=[{"role": "system", "content": "Ты думаешь быстро и по делу."},
+                          {"role": "user", "content": prompt}],
+                )
+
+                json_text = response.choices[0].message.content.strip()
+                if json_text.startswith("```json"):
+                    json_text = json_text[7:-3]
+                    data = json.loads(json_text)
+
+                    return MemoryRecord.from_json(json_text)
+            except Exception as e:
+                print(f"упал: {e} \n {json_text}")
+                return MemoryRecord.from_json(json.loads(f"""
+                {{
+  "memory_record": {{
+    "title": "кратко что было сделано",
+    "task": {self.context.user_goal},
+    "solution_outline": ["шаги решения"],
+    "tool_name_list": [{tools}],
+    "key_decisions": [],
+    "pitfalls_and_fixes": [],
+    "artifacts": [],
+    "verification": [],
+    "reusable_patterns": [],
+    "tags": []
+  }}
+    }}
+"""))

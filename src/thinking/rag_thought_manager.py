@@ -6,6 +6,7 @@ from src.action import Action
 from src.llm.agent_client import AgentClient
 from src.memory import Context, Thought
 from src.rag.agent_embeding import Embedder
+from src.task import MemoryRecord
 from src.tool import Tool
 
 class RagThoughtManager:
@@ -71,6 +72,25 @@ class RagThoughtManager:
                         success=last_obs.success
                     )
                 )
+    async def memory_record_save_to_rag(self, memory_record: MemoryRecord):
+        if self.embedder:
+                asyncio.create_task(
+                    asyncio.to_thread(
+                        self.embedder.save_memory_record,
+                        record=memory_record
+                    )
+                )
+
+    async def rag_queries_on_begin(self, rag_queries: list[str]) -> Optional[str]:
+        memory_records: list[str] = []
+        for query in rag_queries:
+            memory_record = await asyncio.to_thread(
+            self.embedder.find_memory_record,
+            query,
+            top_k=5,
+            max_distance=0.12)
+            memory_records.append(memory_record)
+        return "\n".join(memory_records)
 
     async def _get_rag_context(self, situation) -> str:
         chunk_list = self.embedder.find_chunks(situation, top_k=3, max_distance = 0.1)

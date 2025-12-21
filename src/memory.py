@@ -1,8 +1,10 @@
+import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List, Dict
 
 from src.action import Action
+from src.task import CompactGoal
 
 
 @dataclass
@@ -11,12 +13,36 @@ class Observation:
                  action: Action = None,  # к какому действию относится
                  output: any = None,  # результат инструмента (текст, структура, лог)
                  success: bool = False,  # прошло ли действие успешно
-                 thought: str = None,
+                 step: int = -1,
                  ):
         self.action = action
         self.output = output
-        self.thought = thought
         self.success = success
+        self.step = step
+
+    def to_json_fields(self, output_max_len: int = 100) -> dict:
+        tool_name = getattr(self.action, "tool_name", None)
+
+        # Make output a short string (max 100 chars)
+        if self.output is None:
+            output_short = None
+        else:
+            s = str(self.output)
+            if len(s) > output_max_len:
+                output_short = s[:output_max_len]
+            else:
+                output_short = s
+
+        return {
+            "tool_name": tool_name,
+            "success": bool(self.success),
+            "output": output_short,
+            "step": self.step,
+        }
+
+    def to_json(self, output_max_len: int = 100) -> str:
+        return json.dumps(self.to_json_fields(output_max_len), ensure_ascii=False)
+
 
 
 @dataclass
@@ -33,6 +59,8 @@ class Memory:
 class Context:
     memory: Memory  # полная память
     user_goal: Optional[str]  # что агент должен сделать сейчас
+    compact_goal: Optional[CompactGoal]
+    rag: Optional[str]
     last_observation: Observation  # последнее наблюдение (может быть None)
 
     def __init__(self, memory: Memory = None, user_goal: str = None):

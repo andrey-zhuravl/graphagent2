@@ -34,7 +34,7 @@ class McpStreamClient:
         if self._transport:
             await self._transport.__aexit__(exc_type, exc_val, exc_tb)
 
-    async def list_tools(self) -> list[Tool]:
+    async def mpc_list_tools(self) -> list[Tool]:
         tools_result = await self._inner_session.list_tools()
         return tools_result.tools
 
@@ -70,6 +70,16 @@ class McpStreamClient:
                     "required": tool_dict.inputSchema.get("required", [])
                 }
             }
+        }
+
+    def convert_mcp_tool_to_openai_mini_format(self, tool_dict: Tool) -> Dict:
+        """
+        Преобразует инструмент в формате mini-FastMCP (MCP-spec) в формат OpenAI function calling.
+        """
+        return {
+                "name": tool_dict.name,
+                "description": tool_dict.description,
+                "params": [param_name for param_name, param_meta in tool_dict.inputSchema["properties"].items()]
         }
 
 async def main():

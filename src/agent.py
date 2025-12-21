@@ -5,8 +5,9 @@ from src.action import Action
 from src.llm.agent_client import AgentClient
 from src.mcp_server.mcp_streamable_client import McpStreamClient
 from src.memory import Context, Observation, Thought
+from src.task import CompactGoal
 from src.thinking.thought_manager import ThoughtManager
-from src.tool import Tool
+from mcp import Tool
 
 import asyncio
 from src.utils.redis_client import redis_client
@@ -19,7 +20,7 @@ class Agent:
     ):
         # Контекст берём через DI; если не передали — создаём пустой.
         self.mcp_client = None
-        self.tools = None
+        self.tools: dict[str, Tool] = {}
         self.context = context if context is not None else Context(
             memory=None,
             user_goal=None,
@@ -28,37 +29,61 @@ class Agent:
         self.thought_manager = ThoughtManager(context = self.context)
 
     async def async_run(self, task: str):
-        self.context.user_goal=task,
         self.context.set_task(task)
         async with McpStreamClient() as client:
             self.mcp_client = client
-            self.tools = await self.mcp_client.list_tools()
+            ts = await self.mcp_client.mpc_list_tools()
+            for tool in ts:
+                self.tools[tool.name] = tool
+            await self.begin_step()
 
             for step in range(1, 999):
                 await self.async_step(step)
 
                 if self.is_task_complete():
+                    await self.end_step()
                     break
 
+    async def begin_step(self):
+        mini_format_tools = await self.get_mini_format_tools()
+        await self.thought_manager.pre_think(mini_format_tools)
+
+    async def get_mini_format_tools(self):
+        parts = []
+        # 2. MCP инструменты
+        parts.append(f"MCP инструменты:\n[")
+        for tool_name, tool in self.tools.items():
+            t = self.mcp_client.convert_mcp_tool_to_openai_mini_format(tool)
+            parts.append(f"{t}\n")
+        parts.append("]")
+        mini_format_tools = "\n".join(parts)
+        return mini_format_tools
+
+    async def end_step(self):
+        mini_format_tools = await self.get_mini_format_tools()
+        observations = await self.get_observations()
+        await self.thought_manager.post_think(mini_format_tools, observations)
+
     async def async_step(self, step: int):
-        situation: str = self.build_situation()
+        situation: str = self.build_situation(step)
+
         # ← Думаем асинхронно (RAG и LLM — await)
-        thought: Thought = await self.thought_manager.think(self.tools, situation)
+        thought: Thought = await self.thought_manager.think(self.tools, situation, self.context.compact_goal.rag_queries)
         # ← Может вернуть одно действие или список независимых
         actions: list[Action] = self.thought_to_actions(thought)  # не action, а actions!
         date_time = f"[{datetime.now().strftime('%y-%m-%d %H:%M:%S.%f')[:-3]}]"
 
         print(f"{date_time}:Шаг {step} | Мысль: {thought.reasoning} | Действий: {len(actions) if isinstance(actions, list) else 1}")
-        observations: list[Observation] = await self.actions_to_observations(actions)
+        observations: list[Observation] = await self.actions_to_observations(actions, step)
         self.context.update(observations)
 
         # === Сохранение в долгосрочную память ===
         await self.thought_manager.rag_thought_manager.save_to_rag(thought)
         
         # === Сохранение всех наблюдений в Redis на 1 час ===
-        await self.save_observations_to_redis(observations)
+        # await self.save_observations_to_redis(observations)
 
-    async def actions_to_observations(self, actions) -> list[Observation]:
+    async def actions_to_observations(self, actions: list[Action], step: int) -> list[Observation]:
         observations: list[Observation] = []
         if isinstance(actions, list):
             for action in actions:
@@ -73,7 +98,8 @@ class Agent:
                 observations.append(Observation(
                     action=action,
                     output=result,
-                    success=True
+                    success=True,
+                    step=step,
                 ))
                 print(result)
         return observations
@@ -107,12 +133,13 @@ class Agent:
             print(f"Error saving observations to Redis: {e}")
 
 
-    def build_situation(self) -> str:
+    def build_situation(self, step: int) -> str:
         parts = []
 
         # 1. Главная цель — всегда наверху
-        if self.context.user_goal:
-            parts.append(f"ЦЕЛЬ: {self.context.user_goal}")
+
+        parts.append(f"ЦЕЛЬ: {self.context.compact_goal.to_json()}")
+        parts.append(f"step:{step}")
 
         # 2. Последнее действие и его результат
         if self.context.last_observation:
@@ -132,8 +159,8 @@ class Agent:
 
         # 5. MCP инструменты
         parts.append(f"MCP инструменты:\n[")
-        for tool in self.tools:
-            t = self.mcp_client.convert_mcp_tool_to_openai_format(tool)
+        for tool_name in self.context.compact_goal.tool_name_list:
+            t = self.mcp_client.convert_mcp_tool_to_openai_format(self.tools[tool_name])
             parts.append(f"{t}\n")
         submit_task = {'type': 'function',
                       'function': {'name': 'submit_task',
@@ -230,3 +257,10 @@ class Agent:
         if self.context.last_observation.action.tool_name == "error_llm":
             return False
         return False
+
+    async def get_observations(self) -> str:
+        task_history = []
+        for obs in self.context.memory.history:
+            task_history.append("observation:{}".format(obs.to_json()))
+        return "\n".join(task_history)
+

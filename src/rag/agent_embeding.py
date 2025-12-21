@@ -5,9 +5,17 @@ import sys
 from pathlib import Path
 from typing import List, Dict
 
+from sqlalchemy.orm import Session
+
 from src.rag.pgvector_rag import PgVectorRAG
-from src.rag.models import Chunk, MemoryChunk
+from src.rag.models import Chunk, MemoryChunk, MemoryRecordRow
+from src.task import MemoryRecord
 from src.utils.config import get_config_dict
+
+from typing import List
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
@@ -67,22 +75,11 @@ class Embedder:
         print(f"Нашли {len(result)} чанков")
         return result
 
-    # def find_memory_chunks1(self, query: str, top_k: int = 5, max_distance: float = 0.15) -> List[MemoryChunk]:
-    #     self.pgVectorRAG.memory_init_db()
-    #     emb = self.get_embedding(query)
-    #     if not emb:
-    #         return []
-    #
-    #     with Session(self.engine) as session:
-    #         distance_expr = MemoryChunk.embedding.cosine_distance(emb)
-    #         stmt = (
-    #             select(MemoryChunk)
-    #             .order_by(distance_expr)
-    #             .where(distance_expr <= max_distance)
-    #             .limit(top_k)
-    #         )
-    #         rows = session.execute(stmt).scalars().all()
-    #         return rows
+    def find_memory_record(self, query: str, top_k: int = 5, max_distance: float = 0.15) -> List[MemoryChunk]:
+        embedding: List[float] = self.get_embedding(query)
+        result = self.pgVectorRAG.search_memory(embedding, top_k=top_k, max_distance=max_distance)
+        print(f"Нашли {len(result)} чанков")
+        return result
 
     def save_memory_chunk(
             self,
@@ -112,6 +109,46 @@ class Embedder:
         self.pgVectorRAG.save_memory_chunk(memory_chunk)  # у тебя уже есть этот метод
         print(f"Сохранена память: {situation[:80]}...")
 
+    def save_memory_record(self,
+                           record: MemoryRecord):
+        embedding: List[float] = self.get_embedding(record.task)
+
+        self.pgVectorRAG.save_memory_record(MemoryRecordRow(
+            title=record.title,
+            task =record.task,
+            solution_outline =record.solution_outline,
+            key_decisions =record.key_decisions,
+            artifacts = record.artifacts,
+            verification = record.verification,
+            reusable_patterns =record.reusable_patterns,
+            tags =record.tags,
+            embedding = embedding,
+        ))
+        print(f"Сохранена память MemoryRecordRow: {record.title}...")
+        # with Session(self.engine) as session:
+        #     stmt = (
+        #         pg_insert(MemoryRecordRow)
+        #         .values(**values)
+        #         .on_conflict_do_update(
+        #             constraint="uq_memrec_signature_scope_domain",
+        #             set_={
+        #                 "title": values["title"],
+        #                 "language": values["language"],
+        #                 "tags": values["tags"],
+        #                 "stack": values["stack"],
+        #                 "record_json": values["record_json"],
+        #                 "embedding": values["embedding"],
+        #                 "success": values["success"],
+        #                 "source": values["source"],
+        #                 "updated_at": func.now(),
+        #             },
+        #         )
+        #         .returning(MemoryRecordRow.id)
+        #     )
+        #
+        #     rec_id = session.execute(stmt).scalar_one()
+        #     session.commit()
+        #     return rec_id
     # --------------------------------------------------------------
     # Утилиты
     # --------------------------------------------------------------
