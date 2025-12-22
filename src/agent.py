@@ -68,7 +68,10 @@ class Agent:
         situation: str = self.build_situation(step)
 
         # ← Думаем асинхронно (RAG и LLM — await)
-        thought: Thought = await self.thought_manager.think(self.tools, situation, self.context.compact_goal.rag_queries)
+        thought: Thought = await self.thought_manager.think(self.tools,
+                                                            situation,
+                                                            self.context.compact_goal.rag_queries,
+                                                            step=step)
         # ← Может вернуть одно действие или список независимых
         actions: list[Action] = self.thought_to_actions(thought)  # не action, а actions!
         date_time = f"[{datetime.now().strftime('%y-%m-%d %H:%M:%S.%f')[:-3]}]"
@@ -141,14 +144,14 @@ class Agent:
         parts.append(f"ЦЕЛЬ: {self.context.compact_goal.to_json()}")
         parts.append(f"step:{step}")
 
-        # 2. Последнее действие и его результат
-        if self.context.last_observation:
-            obs = self.context.last_observation
-            status = "УСПЕХ" if obs.success else "ОШИБКА"
-            parts.append(f"ПОСЛЕДНЕЕ ДЕЙСТВИЕ ({status}): {obs.action.tool_name}")
-            if not obs.success:
-                error = obs.output.strip().split('\n')[-1]  # последняя строка ошибки
-                parts.append(f"ОШИБКА: {error}")
+        # # 2. Последнее действие и его результат
+        # if self.context.last_observation:
+        #     obs = self.context.last_observation
+        #     status = "УСПЕХ" if obs.success else "ОШИБКА"
+        #     parts.append(f"ПОСЛЕДНЕЕ ДЕЙСТВИЕ ({status}): {obs.action.tool_name}")
+        #     if not obs.success:
+        #         error = obs.output.strip().split('\n')[-1]  # последняя строка ошибки
+        #         parts.append(f"ОШИБКА: {error}")
 
         # 3. Краткая история (последние 3–5 шагов)
         parts.append("История:")
@@ -185,22 +188,25 @@ class Agent:
         Главная точка гибкости: здесь решаем, что делать дальше.
         """
         action_list: list[Action] = []
-        if thought.source == "llm" and thought.action_plan:
-            for tool in thought.action_plan:
-                if "parameters" in tool:
-                    action_list.append(Action(
-                        tool_name=tool["tool"],
-                        params=tool["parameters"]
-                    ))
-                else:
-                    action_list.append(Action(
-                        tool_name=tool["tool"]
-                    ))
-        else:
-            action_list.append(Action(
-                        tool_name="empty_action",
+        try:
+            if thought.source == "llm" and thought.action_plan:
+                for tool in thought.action_plan:
+                    if "parameters" in tool:
+                        action_list.append(Action(
+                            tool_name=tool["tool"],
+                            params=tool["parameters"]
+                        ))
+                    else:
+                        action_list.append(Action(
+                            tool_name=tool["tool"]
+                        ))
+            else:
+                action_list.append(Action(
+                            tool_name="empty_action",
+                        )
                     )
-                )
+        except Exception as e:
+            print(f"Error thought actions: {e}")
         return action_list
         #
         # if thought.source.startswith("template_"):

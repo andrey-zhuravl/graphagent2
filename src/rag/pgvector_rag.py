@@ -22,7 +22,6 @@ class PgVectorRAG:
             db_url = config["memory"]["embedding_db_url"]  # "postgresql+psycopg2://..."
         self.engine = create_engine(db_url, future=True)
         self.session = Session(self.engine)
-        self.memory_record_init_db()
 
     def init_db(self):
         Base.metadata.create_all(self.engine)

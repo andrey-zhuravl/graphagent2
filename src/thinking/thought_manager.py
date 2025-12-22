@@ -41,7 +41,7 @@ class ThoughtManager:
         )
 
     # Основной метод мышления, вызывающий все уровни
-    async def think(self,tools: list[Tool], situation: str, rag_queries: list[str]) -> Thought:
+    async def think(self,tools: list[Tool], situation: str, rag_queries: list[str], step: int) -> Thought:
         self.tools = tools
 
         #template_hints = self.template_thought_manager.template_thinking(situation)
@@ -54,6 +54,7 @@ class ThoughtManager:
             #template_hints=template_hints,  # ← вот они!
             rag_context=rag_context,  # ← и вот это!
             # recent_errors=recent_errors
+            step = step,
         )
 
         return llm_thought

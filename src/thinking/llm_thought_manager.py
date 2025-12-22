@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from src.action import Action
 from src.llm.agent_client import AgentClient
@@ -6,6 +7,19 @@ from src.memory import Context, Thought
 from src.rag.agent_embeding import Embedder
 from src.task import CompactGoal, MemoryRecord
 
+
+async def write_file(file_path: str, content: str) -> str:
+    """Записывает файл (создает директории при необходимости)"""
+    print(f"Начали записывать файл {file_path}")
+    path = Path(file_path)
+    try:
+        with open(path, 'w', encoding='utf-8') as f:
+            path.write_text(content, encoding="utf-8")
+        print(f"✓ Файл успешно записан: {path}")
+        return f"✓ Файл успешно записан: {path}"
+    except Exception as e:
+        print(f"❌ Ошибка при записи: {str(e)}")
+        return f"❌ Ошибка при записи: {str(e)}"
 
 class LlmThoughtManager:
     def __init__(self, context: Context,
@@ -20,7 +34,8 @@ class LlmThoughtManager:
     async def llm_thinking(self, situation: str,
                            template_hints: str = None,  # ← вот они!
                            rag_context: str = None,  # ← и вот это!
-                           recent_error: str = None
+                           recent_error: str = None,
+                           step: int = 0,
                            ) -> Thought:
         prompt = f"""
 Наша Цель пользователя: {self.context.user_goal or "не указана"}
@@ -64,6 +79,7 @@ RAG (если есть):
             )
 
             json_text = response.choices[0].message.content.strip()
+            await self.debug_logging_to_files(json_text, prompt, step)
             if json_text.startswith("```json"):
                 json_text = json_text[7:-3]
             try:
@@ -97,6 +113,10 @@ RAG (если есть):
                     Action(tool_name="error_llm")
                 ]
             )
+
+    async def debug_logging_to_files(self, json_text, prompt, step):
+        await write_file(f"D:\\temp\\debug\\prompt_{step}.txt", prompt)
+        await write_file(f"D:\\temp\\debug\\llm__{step}.txt", json_text)
 
     async def llm_pre_thinking(self, tools: str) -> CompactGoal:
         prompt = f"""
@@ -154,7 +174,6 @@ RAG (если есть):
             json_text = response.choices[0].message.content.strip()
             if json_text.startswith("```json"):
                 json_text = json_text[7:-3]
-                data = json.loads(json_text)
 
             return CompactGoal.from_json(json_text)
         except Exception as e:
@@ -231,9 +250,7 @@ RAG (если есть):
                 json_text = response.choices[0].message.content.strip()
                 if json_text.startswith("```json"):
                     json_text = json_text[7:-3]
-                    data = json.loads(json_text)
-
-                    return MemoryRecord.from_json(json_text)
+                return MemoryRecord.from_json(json_text)
             except Exception as e:
                 print(f"упал: {e} \n {json_text}")
                 return MemoryRecord.from_json(json.loads(f"""
