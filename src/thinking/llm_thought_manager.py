@@ -42,6 +42,7 @@ class LlmThoughtManager:
 IMPORTANT:
 The parameter for write_file - "path" is FORBIDDEN.
 Use ONLY "file_path".
+Large tool outputs must NOT be inlined: store outputs as artifacts and operate via refs + retrieve_artifact when details are needed.
 Текущая ситуация:
 {situation}
 
@@ -62,7 +63,7 @@ RAG (если есть):
         {{
             "tool": "write_file",
             "parameters": {{
-                "path": "test.py",
+                "file_path": "test.py",
                 "content": "содержимое файла которое нужно сохранить...",
                 "mkdir": true
             }}

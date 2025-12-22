@@ -1,13 +1,18 @@
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, Dict, Any
 
+from mcp import Tool
+
 from src.action import Action
+from src.artifacts.policy import ArtifactPolicy
+from src.artifacts.store import ArtifactStore
+from src.artifacts.tools import get_retrieve_artifact_tool_schema, retrieve_artifact
 from src.llm.agent_client import AgentClient
 from src.mcp_server.mcp_streamable_client import McpStreamClient
 from src.memory import Context, Observation, Thought
 from src.task import CompactGoal
 from src.thinking.thought_manager import ThoughtManager
-from mcp import Tool
 
 import asyncio
 from src.utils.redis_client import redis_client
@@ -17,6 +22,7 @@ class Agent:
             self,
             context: Optional["Context"] = None,
             tools: Optional[dict[str, Tool]] = None,
+            artifact_store: Optional[ArtifactStore] = None,
     ):
         # Контекст берём через DI; если не передали — создаём пустой.
         self.mcp_client = None
@@ -27,6 +33,9 @@ class Agent:
         )
         self.client = AgentClient("llm1")
         self.thought_manager = ThoughtManager(context = self.context)
+        self.artifact_store = artifact_store or ArtifactStore(Path(".artifacts"))
+        self.artifact_policy = ArtifactPolicy(self.artifact_store)
+        self.custom_tool_schema = get_retrieve_artifact_tool_schema()
 
     async def async_run(self, task: str):
         self.context.set_task(task)
@@ -55,6 +64,7 @@ class Agent:
         for tool_name, tool in self.tools.items():
             t = self.mcp_client.convert_mcp_tool_to_openai_mini_format(tool)
             parts.append(f"{t}\n")
+        parts.append(f"{self.custom_tool_schema}\n")
         parts.append("]")
         mini_format_tools = "\n".join(parts)
         return mini_format_tools
@@ -90,21 +100,32 @@ class Agent:
         observations: list[Observation] = []
         if isinstance(actions, list):
             for action in actions:
+                params = action.params or {}
                 if ("submit_task" == action.tool_name
                         or "think_along" == action.tool_name
                         or "empty_action" == action.tool_name
                         or "error_llm" == action.tool_name):
                     result = action.tool_name
+                elif action.tool_name == "retrieve_artifact":
+                    result = retrieve_artifact(
+                        self.artifact_store,
+                        params.get("ref"),
+                        start_line=params.get("start_line"),
+                        end_line=params.get("end_line"),
+                    )
                 else:
                     result = await action.execute(self.mcp_client)
 
+                output_short, artifact_refs = self.artifact_policy.maybe_persist(result)
+
                 observations.append(Observation(
                     action=action,
-                    output=result,
+                    output=output_short,
                     success=True,
                     step=step,
+                    artifacts=artifact_refs,
                 ))
-                print(result)
+                print(output_short if output_short is not None else result)
         return observations
 
     async def save_observations_to_redis(self, observations: list[Observation]):
@@ -125,7 +146,7 @@ class Agent:
                     },
                     "output": str(observation.output),
                     "success": observation.success,
-                    "thought": observation.thought
+                    "artifacts": [str(a) for a in observation.artifacts],
                 }
                 
                 # Save to Redis with 1 hour TTL (3600 seconds)
@@ -175,6 +196,7 @@ class Agent:
                                    }}
         parts.append(f"{submit_task}\n")
         parts.append(f"{think_along}\n")
+        parts.append(f"{self.custom_tool_schema}\n")
         parts.append("]")
 
         if self.context.get_plan():

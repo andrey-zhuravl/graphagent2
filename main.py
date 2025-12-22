@@ -1,10 +1,16 @@
 import asyncio
+from pathlib import Path
 
 from src.agent import Agent
+from src.artifacts.store import ArtifactStore
+from src.utils.config import get_config_dict
 
 
 async def main():
-    agent = Agent()
+    config = get_config_dict()
+    artifacts_path = Path(config.get("artifacts", {}).get("path", ".artifacts"))
+    artifact_store = ArtifactStore(artifacts_path)
+    agent = Agent(artifact_store=artifact_store)
     task0 = "ты должен всегда выбирать инструмент think_along для дополнительных рассуждений или инструменты для работы с файловой системой, читать историю и продолжать рассуждени не тему - как сделать тревел-блогерам ии-агента-помощника, твои рассужденя будут добавлятся в историю, и ты должен читать историю и продолжать развивать тему. Ты можешь читать в истории свои шаги, и постепенно обогащать новыми идеями файлы."
 
     task01 = "Напиши рассказ в два предложения и сохрани в файл D:\\temp\\story.txt, после того как это будет сделано, нужно будет прочитать этот файл и добавить продолжение из двух предложений озаглавив их --Итог--"

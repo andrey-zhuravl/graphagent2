@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List, Dict
 
+from src.artifacts.models import ArtifactRef
+
 from src.action import Action
 from src.task import CompactGoal
 
@@ -11,16 +13,18 @@ from src.task import CompactGoal
 class Observation:
     def __init__(self,
                  action: Action = None,  # к какому действию относится
-                 output: any = None,  # результат инструмента (текст, структура, лог)
+                 output: any = None,  # короткое описание результата
                  success: bool = False,  # прошло ли действие успешно
                  step: int = -1,
+                 artifacts: Optional[list[ArtifactRef | str]] = None,
                  ):
         self.action = action
         self.output = output
         self.success = success
         self.step = step
+        self.artifacts = artifacts or []
 
-    def to_json_fields(self, output_max_len: int = 100) -> dict:
+    def _output_short(self, output_max_len: int = 100) -> Optional[str]:
         tool_name = getattr(self.action, "tool_name", None)
 
         # Make output a short string (max 100 chars)
@@ -33,11 +37,18 @@ class Observation:
             else:
                 output_short = s
 
+        return output_short
+
+    def to_json_fields(self, output_max_len: int = 100) -> dict:
+        tool_name = getattr(self.action, "tool_name", None)
+        output_short = self._output_short(output_max_len)
+
         return {
             "tool_name": tool_name,
             "success": bool(self.success),
             "output": output_short,
             "step": self.step,
+            "artifacts": [str(a) for a in self.artifacts],
         }
 
     def to_json(self, output_max_len: int = 100) -> str:
@@ -94,7 +105,10 @@ class Context:
         lines = []
         for obs in self.memory.history[-num_obs:]:
             mark = "[Success]" if obs.success else "[Error]"
-            lines.append(f"{mark} {obs.action.tool_name}: {obs.action.params} - результат: {obs.output}")
+            refs = f" refs={','.join([str(a) for a in obs.artifacts])}" if obs.artifacts else ""
+            lines.append(
+                f"{mark} {obs.action.tool_name}: {obs.action.params} - результат: {obs.output}{refs}"
+            )
         return "\n".join(lines) if lines else "История пуста"
 
 

@@ -38,3 +38,6 @@ python_env = "python3"  # Команда для запуска Python
 base_url = "http://127.0.0.1:8000"
 sandbox_mode = true  # Включить sandbox для инструментов
 max_exec_time = 60  # Максимальное время выполнения (секунды)
+
+[artifacts]
+path = ".artifacts"
