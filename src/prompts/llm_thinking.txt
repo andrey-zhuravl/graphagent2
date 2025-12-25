@@ -1,0 +1,36 @@
+Задача пользователя: {user_goal}
+Текущая ситуация:
+{situation}
+
+Текущий статус:
+{state_update}
+
+RAG (если есть):
+{rag_context}
+
+Когда достигнуты критерии указанные в цели — используй submit_task.
+Обнови state_update в ответе учитывая, то что получила в этом запросе 
+в пункте Текущий статус - state_update.
+указывай start_line - текущую строку из которой читаем текст
+в state_update.notes записывай свои замечания.
+избегай повторяющихся действий.
+Ответь ТОЛЬКО JSON.
+Ответ строго в JSON, Начни с '{' и закончи '}':
+{{
+    "reasoning": "твои рассуждения на русском кратко и по сути.",
+    "action_plan": [
+        {{
+            "tool": "name_tool",
+            "parameters": {{
+                "param1": "some value",
+            }}
+        }}
+    ],
+    "state_update": {{
+        "start_line": null,
+        "found_end": false,
+        "end_line": null,
+        "notes": ["risoning..."]
+    }}
+    "confidence": 0.XX
+}}
