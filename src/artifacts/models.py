@@ -30,6 +30,7 @@ class ArtifactMeta:
     size: int
     created_at: datetime
     summary: Optional[str] = None
+    content: Optional[str] = None
 
     def to_dict(self) -> dict:
         return {
@@ -39,6 +40,7 @@ class ArtifactMeta:
             "size": self.size,
             "created_at": self.created_at.isoformat(),
             "summary": self.summary,
+            "content": self.content,
         }
 
     @classmethod
@@ -50,4 +52,5 @@ class ArtifactMeta:
             size=int(data["size"]),
             created_at=datetime.fromisoformat(data["created_at"]),
             summary=data.get("summary"),
+            content=data.get("content"),
         )

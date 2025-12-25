@@ -61,7 +61,7 @@ class ArtifactStore:
     def save(self, data: Any, summary: Optional[str] = None) -> ArtifactRef:
         if isinstance(data, bytes):
             return self.save_bytes(data, summary=summary)
-        if isinstance(data, (dict, list)):
+        if isinstance(data, dict):
             return self.save_json(data, summary=summary)
         return self.save_text(str(data), summary=summary)
 

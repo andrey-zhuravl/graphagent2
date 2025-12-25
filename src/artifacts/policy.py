@@ -26,14 +26,14 @@ class ArtifactPolicy:
         text = str(value)
         return len(text) > self.max_inline_length
 
-    def maybe_persist(self, value: Any) -> Tuple[str | None, List[str]]:
+    def maybe_persist(self, value: Any) -> Tuple[str | None, str | None, List[str]]:
         if value is None:
-            return None, []
+            return None, None, []
 
         if self._should_persist(value):
             summary = self._summarize(value)
             ref: ArtifactRef = self.store.save(value, summary=summary)
-            return summary, [str(ref)]
+            return value, summary, [str(ref)]
 
         text_value = str(value)
-        return self._summarize(text_value), []
+        return text_value, self._summarize(text_value), []

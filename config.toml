@@ -6,6 +6,12 @@ batch_size = 16
 
 [llm2]
 base_url = "http://192.168.1.12:1234/v1"  # LM-Studio OpenAI-compatible API
+model = "gad-gpt-5-chat-llama-3.1-8b-instruct-i1"
+max_tokens = 12000
+batch_size = 16
+
+[llm3]
+base_url = "http://192.168.1.12:1234/v1"  # LM-Studio OpenAI-compatible API
 model = "openai/gpt-oss-20b"
 max_tokens = 12000
 batch_size = 16

@@ -55,6 +55,7 @@ class ThoughtManager:
             rag_context=rag_context,  # ← и вот это!
             # recent_errors=recent_errors
             step = step,
+            state_update = self.context.state_update.to_str(),
         )
 
         return llm_thought

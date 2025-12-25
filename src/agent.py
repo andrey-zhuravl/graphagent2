@@ -7,7 +7,7 @@ from mcp import Tool
 from src.action import Action
 from src.artifacts.policy import ArtifactPolicy
 from src.artifacts.store import ArtifactStore
-from src.artifacts.tools import get_retrieve_artifact_tool_schema, retrieve_artifact
+from src.artifacts.tools import get_retrieve_artifact_tool_schema, retrieve_artifact, get_retrieve_artifact_mini_tool_schema
 from src.llm.agent_client import AgentClient
 from src.mcp_server.mcp_streamable_client import McpStreamClient
 from src.memory import Context, Observation, Thought
@@ -31,11 +31,11 @@ class Agent:
             memory=None,
             user_goal=None,
         )
-        self.client = AgentClient("llm1")
         self.thought_manager = ThoughtManager(context = self.context)
         self.artifact_store = artifact_store or ArtifactStore(Path(".artifacts"))
         self.artifact_policy = ArtifactPolicy(self.artifact_store)
         self.custom_tool_schema = get_retrieve_artifact_tool_schema()
+        self.custom_tool_mini_schema = get_retrieve_artifact_mini_tool_schema()
 
     async def async_run(self, task: str):
         self.context.set_task(task)
@@ -64,7 +64,7 @@ class Agent:
         for tool_name, tool in self.tools.items():
             t = self.mcp_client.convert_mcp_tool_to_openai_mini_format(tool)
             parts.append(f"{t}\n")
-        parts.append(f"{self.custom_tool_schema}\n")
+        parts.append(f"{self.custom_tool_mini_schema}\n")
         parts.append("]")
         mini_format_tools = "\n".join(parts)
         return mini_format_tools
@@ -82,6 +82,7 @@ class Agent:
                                                             situation,
                                                             self.context.compact_goal.rag_queries,
                                                             step=step)
+        self.context.state_update = thought.state_update
         # ← Может вернуть одно действие или список независимых
         actions: list[Action] = self.thought_to_actions(thought)  # не action, а actions!
         date_time = f"[{datetime.now().strftime('%y-%m-%d %H:%M:%S.%f')[:-3]}]"
@@ -116,11 +117,12 @@ class Agent:
                 else:
                     result = await action.execute(self.mcp_client)
 
-                output_short, artifact_refs = self.artifact_policy.maybe_persist(result)
+                output, output_short, artifact_refs = self.artifact_policy.maybe_persist(result)
 
                 observations.append(Observation(
                     action=action,
-                    output=output_short,
+                    output_short=output_short,
+                    output=output,
                     success=True,
                     step=step,
                     artifacts=artifact_refs,
@@ -162,8 +164,8 @@ class Agent:
 
         # 1. Главная цель — всегда наверху
 
+        parts.append(f"Рассуждение № {step}")
         parts.append(f"ЦЕЛЬ: {self.context.compact_goal.to_json()}")
-        parts.append(f"step:{step}")
 
         # # 2. Последнее действие и его результат
         # if self.context.last_observation:
